@@ -1,0 +1,77 @@
+#ifndef PHYS_ENGINE_S3D
+#define PHYS_ENGINE_S3D
+
+#include <Debug.s3d>
+#include <Force.s3d>
+#include <Contact.s3d>
+#include <ContactResolver.s3d>
+#include <ContactGenerator.s3d>
+#include <ContactDetector.s3d>
+
+class PhysEngine{
+	var m_entities;
+	var m_forces;
+	var m_torques;
+	var m_contacts;
+	var m_contactDetector;
+	
+	RegisterEntity(entity);
+	RegisterPlane(planeNormal, offset);
+	RegisterForce(force);
+	RegisterTorque(torque);
+	RunSimulation(interval);
+	
+	prepareForNextFrame();
+};
+
+function PhysEngine::PhysEngine(){
+	m_entities = Array(0);
+	m_forces = Array(0);
+	m_torques = Array(0);
+	m_contacts = Array(0);
+	m_contactDetector = ContactDetector(m_entities, m_contacts);
+	
+	m_contactDetector.RegisterBinaryContactGenerator(ParticleContactGenerator());
+	m_contactDetector.RegisterBinaryContactGenerator(SphereContactGenerator());
+}
+
+function PhysEngine::RegisterEntity(entity){
+	aadd(m_entities, entity);
+}
+
+function PhysEngine::RegisterPlane(planeNormal, offset){
+	m_contactDetector.RegisterUnaryContactGenerator(PlaneContactGenerator(planeNormal, offset));
+}
+
+function PhysEngine::RegisterForce(force){
+	aadd(m_forces, force);
+}
+
+function PhysEngine::RegisterTorque(torque){
+	aadd(m_torques, torque);
+}
+
+function PhysEngine::RunSimulation(interval){
+	foreach(var force in m_forces)
+		force.ApplyForce();
+		
+	foreach(var torque in m_torques)
+		torque.ApplyTorque();
+	
+	foreach(var entity in m_entities)
+		entity.Integrate(interval);
+	
+	m_contactDetector.PerformDetection();
+
+	foreach(var contact in m_contacts)
+		contact.Resolve(interval);
+
+	prepareForNextFrame();
+}
+
+function PhysEngine::prepareForNextFrame(){
+	while(len(m_contacts) != 0)
+		adel(m_contacts, 0);
+}
+
+#endif

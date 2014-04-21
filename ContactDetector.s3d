@@ -1,0 +1,61 @@
+#ifndef CONTACTS_DETECTOR_S3D
+#define CONTACTS_DETECTOR_S3D
+
+#include <Debug.s3d>
+#include <Particle.s3d>
+
+class ContactDetector{
+	var m_objects;
+	var m_contacts;
+	var m_unaryContactGenerators;
+	var m_binaryContactGenerators;
+	
+	RegisterUnaryContactGenerator(generator);
+	RegisterBinaryContactGenerator(generator);
+	PerformDetection();
+	
+	checkForUnaryContact(object);
+	checkForBinaryContact(objectA, objectB);
+};
+
+function ContactDetector::ContactDetector(objects, contacts){
+	m_objects = objects;
+	m_contacts = contacts;
+	m_unaryContactGenerators = Array(0);
+	m_binaryContactGenerators = Array(0);
+}
+
+function ContactDetector::RegisterUnaryContactGenerator(generator){
+	aadd(m_unaryContactGenerators, generator);
+}
+
+function ContactDetector::RegisterBinaryContactGenerator(generator){
+	aadd(m_binaryContactGenerators, generator);
+}
+
+function ContactDetector::PerformDetection(){
+	for(var i = 0; i < len(m_objects); i++){
+		for(var j = i + 1; j < len(m_objects); j++){
+			checkForBinaryContact(m_objects[i], m_objects[j]);
+		}
+		checkForUnaryContact(m_objects[i]);
+	}
+}
+
+function ContactDetector::checkForUnaryContact(object){
+	foreach(var generator in m_unaryContactGenerators){
+		var contact = generator.GetContact(object);
+		if(contact != NULL)
+			aadd(m_contacts, contact);
+	}
+}
+
+function ContactDetector::checkForBinaryContact(objectA, objectB){
+	foreach(var generator in m_binaryContactGenerators){
+		var contact = generator.GetContact(objectA, objectB);
+		if(contact != NULL)
+			aadd(m_contacts, contact);
+	}
+}
+
+#endif

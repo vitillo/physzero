@@ -1,0 +1,9 @@
+#ifndef DEBUG_S3D
+#define DEBUG_S3D
+
+function print(value){
+	ConsoleColor();
+	ConsoleText(0.1, 0.9, str(value));
+}
+
+#endif

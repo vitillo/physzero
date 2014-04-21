@@ -1,0 +1,237 @@
+/* Include s3d symbols */
+#include <Script3d.h>
+#include <Camera.s3d.h>
+
+#include <Particle.s3d>
+#include <RigidBody.s3d>
+#include <Force.s3d>
+#include <Torque.s3d>
+#include <Stats.s3d>
+#include <Contact.s3d>
+#include <PhysEngine.s3d>
+
+#DEFINE MAX_FPS	100
+
+/* Set global scene parameters */
+SET SCENE_FOV  = 60;
+SET SCENE_NEAR = 0.5;
+SET SCENE_FAR  = 1000;
+
+
+// TODO: put your global variables here
+
+/* Camera globals */
+var CamPos = [0.0, 5.0, 20.0];	// camera position
+
+/* Light globals */
+var Light0;
+var PosL = [0.0, 10.0, 10.0];	// default light position
+
+/* Physics Engine */
+var PhEngine;
+
+/* Scene Objects */
+var Objects;
+var RigidBodies;
+var Planes;
+
+/* Statistics */
+var Stat;
+
+var cont;
+
+/* Function declarations */
+function CameraMoveMouse();
+function DrawGrid(col, size);
+
+function InitPlanes(){
+	//Floor plane
+	Planes = Array(0);
+	var planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [-10, 0, -10], [10, 0, -30], 1);
+	var planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([0, 1, 0], 0);
+	
+	//Ceil plane
+	planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [-10, 10, -10], [10, 10, -30], 1);
+	planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([0, -1, 0], -10);
+	
+	//Right plane
+	planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [10, 0, -10], [10, 10, -30], 0);
+	planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([-1, 0, 0], -10);
+	
+	//Left plane
+	planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [-10, 0, -10], [-10, 10, -30], 0);
+	planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([1, 0, 0], -10);
+	
+	//Back plane
+	planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [-10, 0, -30], [-10, 10, -30], 2);
+	planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([0, 0, 1], -30);
+	
+	//Front plane
+	planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [10, 0, -10], [10, 10, -10], 2);
+	planeObj = CVmObj(planeMesh);
+	aadd(Planes, planeObj);
+	PhEngine.RegisterPlane([0, 0, -1], 10);
+}
+
+function InitRigidBodies(rForce, jForce, gForce, keyboardTorque){
+	RigidBodies = Array(0);
+	var sphereMesh = CVmNewMesh(VRP_SPHERE, 32, 0.5, 1.0);
+	var planeMesh = CVmNewMesh(VRP_PLANE, 0.0, [0.5, 0.5, 0], [1.5, 1.5, 0], 2, 2);
+	sphereMesh.CenterBoundingBox();
+	planeMesh.CenterBoundingBox();
+	
+	var texture = CVmTexture("text.jpg");
+	var material = CVmMaterial();
+	material.diffuse = [1, 1, 1];
+	material.specular = [0.1, 0.1, 0.1];
+	material.shininess = 5;
+	material.SetTexture(texture);
+	sphereMesh.ForceMaterial(material);
+	
+	var sphereObj = CVmObj(sphereMesh);
+	var planeObj = CVmObj(planeMesh);
+	sphereObj.SetPosition(0, 0.5, -20);
+	planeObj.SetPosition(1, 1, -20);
+	aadd(Objects, sphereObj);
+	aadd(Objects, planeObj);
+	
+	var rBody = Sphere(sphereObj, [0, 0, 0]);
+	var planeBody = Rectangle(planeObj, [5, 5, 0]);
+	planeBody.SetAngularVelocity([12, 6, 40]);
+	rforce.Add(rBody);
+	jForce.Add(rBody);
+	gForce.Add(rBody);
+	
+	keyboardTorque.Add(rBody);
+	
+	PhEngine.RegisterEntity(rBody);
+	PhEngine.RegisterEntity(planeBody);
+}
+
+function InitParticles(num, gForce, dForce){
+	Objects = Array(0);
+	var particleMesh = CVmNewMesh(VRP_SPHERE, 32, 0.5, 1.0);
+	particleMesh.CenterBoundingBox();
+	
+	var obj, part;
+	for(var i = 0 - 2*num; i < 2*num; i=i+2){
+		for(var j = -20 - 2*num; j < -20 + 2*num; j=j+2){
+			obj = CVmObj(particleMesh);
+			obj.SetPosition(i, 0.5, j);
+			aadd(Objects, obj);
+			
+			//part = Particle(obj, [rand(20), rand(30), -rand(20)]);
+			//PhEngine.RegisterEntity(part);
+			
+			part = Sphere(obj, [rand(20), rand(30), -rand(20)]);
+			PhEngine.RegisterEntity(part);
+			
+			gforce.Add(part);
+			dForce.Add(part);
+		}
+	}
+}
+
+function OnInit(params)
+{
+	/* initialize camera */
+	CameraGetCurrent().SetPosition(CamPos);
+
+	/* initialize light */
+	Light0 = CVmLight();
+	Light0.SetPosition(PosL);
+	Light0.SetDiffuse(1, 1, 1);
+	Light0.Enable();	
+
+	//Initialize Physics Engine
+	PhEngine = PhysEngine();
+	
+	//Init Forces
+	var gForce = GravityForce();
+	var dForce = DragForce(0.1);
+	var rForce = RollingForce();
+	var jForce = KeyPressForce("j", [0,20,0]);
+	PhEngine.RegisterForce(gForce);
+	PhEngine.RegisterForce(dForce);
+	PhEngine.RegisterForce(rForce);
+	PhEngine.RegisterFOrce(jForce);
+	
+	//Init Torques
+	var keyboardTorque = WASDTorque();
+	PhEngine.RegisterTorque(keyboardTorque);
+	
+	InitPlanes();
+	InitParticles(2, gForce, dForce);
+	InitRigidBodies(rForce, jForce, gForce, keyboardTorque);
+	
+	//Init statistics
+	SetFrameRate(MAX_FPS);
+	Stat = Stats(MAX_FPS);
+}
+
+function OnFrame()
+{
+	/* manage camera */
+	CameraMoveMouse();
+
+	SceneBegin();
+	
+	//DrawGrid([0.5, 0.5, 0.5], 100);
+	
+	PhEngine.RunSimulation(1.0/Stat.GetFPS());
+	
+	foreach(var obj in Objects)
+		obj.Draw();
+		
+	foreach(var plane in Planes)
+		plane.Draw(VR_BBOX_ONLY);
+
+	Stat.Update();
+	SceneEnd();
+}
+
+function OnDownload(){
+	FileDownload("text.jpg");
+}
+
+function DownloadReady(RequestID){}
+function OnTimer(){}
+function OnExit(){}
+function CameraMoveMouse(){}
+
+function DrawGrid(col, size)
+{
+	/* let's not mess up current OpenGL status */
+	glPushAttrib(GL_LIGHTING_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
+	
+	glLineWidth(1);
+	glDisable(GL_LIGHTING);
+	glColor(col);
+	var max = size / 2.0;
+	var min = -max;	
+	var step = size / 10.0;
+	
+	glBegin(GL_LINES);
+		for (var i = min; i <= max; i += step)
+		{
+			glVertex(i, 0, max);
+			glVertex(i, 0, min);
+			
+			glVertex(max, 0, i);
+			glVertex(min, 0, i);
+		}
+	glEnd();
+	
+	/* polite restoration of previous OpenGL status */
+	glPopAttrib();
+}

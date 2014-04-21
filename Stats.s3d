@@ -1,0 +1,43 @@
+#ifndef STATS_S3D
+#define STATS_S3D
+
+#include <Debug.s3d>
+
+class Stats{
+	var m_snapshot;
+	var m_elapsedTime;
+	var m_frameCounter;
+	var m_fps;
+	
+	Update();
+	GetFPS();
+};
+
+function Stats::Stats(fps){
+	m_snapshot = GetTime();
+	m_frameCounter = m_elapsedTime = 0;
+	
+	if(fps == NULL)
+		fps = 60;
+	else
+		m_fps = fps;
+}
+
+function Stats::Update(){
+	var currentTime = GetTime();
+	m_elapsedTime += (currentTime - m_snapshot);
+	m_snapshot = currentTime;
+	
+	if(m_elapsedTime > 1000){
+		m_fps = m_frameCounter + 1;
+		m_frameCounter = 0;
+		m_elapsedTime = m_elapsedTime % 1000;
+	}else
+		m_frameCounter++;
+}
+
+function Stats::GetFPS(){
+	return m_fps;
+}
+
+#endif

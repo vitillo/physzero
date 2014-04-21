@@ -1,0 +1,182 @@
+#ifndef RIGIDBODY_S3D
+#define RIGIDBODY_S3D
+
+#include <Debug.s3d>
+#include <Particle.s3d>
+
+#define DEF_ORIENTATION 		[0, 0, 0, 1]
+#define DEF_ANGULARVELOCITY		[0, 0, 0]
+#define DEF_ANGULARACCEL		[0, 0, 0]
+#define DEF_TORQUE				[0, 0, 0]
+
+class RigidBody : Particle{
+	var m_torque;
+	var m_orientation;
+	var m_angularVelocity;
+	var m_angularAcceleration;
+	var m_inverseInertiaTensor;
+	var m_scenery;
+	
+	AddTorque(torque);
+	Integrate(interval);
+	
+	GetOrientation();
+	GetAngularVelocity();
+	GetAngularAcceleration();
+	GetInertiaTensor();
+	GetWorldInverseInertiaTensor();
+	
+	SetOrientation(orientation);
+	SetAngularVelocity(angularVelocity);
+	SetInertiaTensor(tensor);
+	
+	init(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor);
+	buildInverseSphereInertiaTensor();
+};
+
+function RigidBody::RigidBody(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor){
+	init(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor);
+}
+
+function RigidBody::init(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor){
+	Particle::this.init(object, velocity, inverseMass, radius);
+	m_torque = DEF_TORQUE;
+	m_orientation = (orientation == NULL) ? DEF_ORIENTATION : orientation;
+	m_angularVelocity = (angularVelocity == NULL) ? DEF_ANGULARVELOCITY : angularVelocity;
+	m_angularAcceleration = DEF_ANGULARACCEL;
+	m_inverseInertiaTensor = (inertiaTensor == NULL) ? buildInverseSphereInertiaTensor() : MatrixInverse_3(inertiaTensor);
+}
+
+function RigidBody::buildInverseSphereInertiaTensor(){
+	var tmpVal = 12.0 / (this.GetMass()*(this.GetRadius()*this.GetRadius() + this.GetRadius()*this.GetRadius()));
+	return [tmpVal, 0, 0, 0, tmpVal, 0, 0, 0, tmpVal];
+}
+
+function RigidBody::AddTorque(torque){
+	m_torque += torque;
+}
+
+function ConvertMatrix4ToMatrix3(mat){
+	return [mat[0], mat[1], mat[2], mat[4], mat[5], mat[6], mat[8], mat[9], mat[10]];
+}
+
+function RigidBody::Integrate(interval){
+	Particle::this.Integrate(interval);
+	
+	m_angularAcceleration = MatrixMultiplyVector_3(GetWorldInverseInertiaTensor(), m_torque);
+	m_torque = DEF_TORQUE;
+	
+	m_angularVelocity += m_angularAcceleration * interval;
+	m_orientation = QuaternionSum(m_orientation, (interval/2)*QuaternionProduct([0, m_angularVelocity.x, m_angularVelocity.y, m_angularVelocity.z], m_orientation));
+	
+	m_object.RotateABS(modulus(m_angularVelocity) * interval, m_angularVelocity);
+}
+
+function RigidBody::GetInertiaTensor(){
+	return MatrixInverse_3(m_inverseInertiaTensor);
+}
+
+function RigidBody::GetWorldInverseInertiaTensor(){
+	var rotationMatrix = ConvertMatrix4ToMatrix3(m_object.GetRotationMatrix());
+	var inverseRotationMatrix = MatrixTranspose_3(rotationMatrix);
+	var worldInverseInertiaTensor = MatrixMultiplyMatrix_3(m_inverseInertiaTensor, inverseRotationMatrix);
+	worldInverseInertiaTensor = MatrixMultiplyMatrix_3(rotationMatrix, worldInverseInertiaTensor);
+	return worldInverseInertiaTensor;
+}
+
+function RigidBody::GetAngularAcceleration(){
+	return m_angularAcceleration;
+}
+
+function RigidBody::GetAngularVelocity(){
+	return m_angularVelocity;
+}
+
+function RigidBody::GetOrientation(){
+	return m_orientation;
+}
+
+function RigidBody::SetAngularVelocity(angularVelocity){
+	m_angularVelocity = angularVelocity;
+}
+
+function Rigidbody::SetOrientation(orientation){
+	m_orientation = orientation;
+}
+
+function RigidBody::SetInertiaTensor(tensor){
+	m_inverseInertiaTensor = MatrixInverse_3(tensor);
+}
+
+class Rectangle : RigidBody{
+	var m_halfSize;
+
+	GetEntityType();
+	GetWorldVertices();
+};
+
+function Rectangle::Rectangle(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor, halfSize){
+	init(object, velocity, inverseMass, radius, orientation, angularVelocity, inertiaTensor);
+	m_halfSize = (halfSize == NULL) ? m_radius : halfSize;
+}
+
+function Rectangle::GetEntityType(){
+	return "Plane";
+}
+
+function Rectangle::GetWorldVertices(){
+	var vertices = Array(4);
+	var pos = m_object.GetPosition();
+	var rotationMatrix = ConvertMatrix4ToMatrix3(m_object.GetRotationMatrix());
+	vertices[0] = MatrixMultiplyVector_4(m_object.GetRotationMatrix(), [-m_halfSize, -m_halfSize, 0, 1]);
+	vertices[1] = MatrixMultiplyVector_4(m_object.GetRotationMatrix(), [m_halfSize, -m_halfSize, 0, 1]);
+	vertices[2] = MatrixMultiplyVector_4(m_object.GetRotationMatrix(), [-m_halfSize, m_halfSize, 0, 1]);
+	vertices[3] = MatrixMultiplyVector_4(m_object.GetRotationMatrix(), [m_halfSize, m_halfSize, 0, 1]);
+	
+	vertices[0] += pos;
+	vertices[1] += pos;
+	vertices[2] += pos;
+	vertices[3] += pos;
+	return vertices;
+}
+
+class Sphere : RigidBody{
+	GetType();
+};
+
+function Sphere::Sphere(object, velocity, inverseMass, radius, orientation, angularVelocity){
+	init(object, velocity, inverseMass, radius, orientation, angularVelocity);
+}
+
+function Sphere::GetType(){
+	return "Sphere";
+}
+
+class Scenery : RigidBody{
+	IsScenery();
+	
+	GetMass();
+	
+	SetPosition();
+	SetVelocity();
+	SetAngularVelocity();
+};
+
+function Scenery::Scenery(){
+	init(NULL, [0, 0, 0], 0);
+	m_inverseInertiaTensor = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+}
+
+function Scenery::IsScenery(){
+	return true;
+}
+
+function Scenery::GetMass(){
+	return 0;
+}
+
+function Scenery::SetPosition(){}
+function Scenery::SetVelocity(){}
+function Scenery::SetAngularVelocity(){}
+
+#endif

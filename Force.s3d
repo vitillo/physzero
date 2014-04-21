@@ -1,0 +1,134 @@
+#ifndef FORCE_S3D
+#define FORCE_S3D
+
+#include <Debug.s3d>
+#include <particle.s3d>
+
+#define DEF_SPRINGCONSTANT 1.0
+#define DEF_EQUILIBRIUM 5.0
+
+class Force{
+	var m_particles;
+	
+	Add(particle);
+	ApplyForce();
+	
+	applyForceToParticle(particle);
+};
+
+function Force::Force(){
+	m_particles = Array(0);
+}
+
+function Force::Add(particle){
+	aadd(m_particles, particle);
+}
+
+function Force::ApplyForce(){
+	for(var i = 0; i < len(m_particles); i++)
+		applyForceToParticle(m_particles[i]);
+}
+
+
+class RollingForce : Force{
+	applyForceToParticle(particle);
+};
+
+function RollingForce::applyForceToParticle(particle){
+	particle.AddForce(particle.GetMass()*particle.GetRadius()*([0, -1, 0] ^ particle.GetAngularAcceleration())*3.14/180.0);
+}
+
+
+class GravityForce : Force{
+	var g;
+	
+	applyForceToParticle(particle);
+};
+
+function GravityForce::GravityForce(){
+	g = [0, -9.8, 0];
+}
+
+function GravityForce::applyForceToParticle(particle){
+	particle.AddForce(particle.GetMass() * g);
+}
+
+
+class ConstantForce : Force{
+	var m_force;
+	
+	applyForceToParticle(particle);
+};
+
+function ConstantForce::ConstantForce(force){
+	m_force = (force == NULL) ? DEF_FORCE : force;
+}
+
+function ConstantForce::applyForceToParticle(particle){
+	particle.AddForce(m_force);
+}
+
+
+class DragForce : Force{
+	var m_k1;
+	var m_k2;
+	
+	applyForceToParticle(particle);
+};
+
+function DragForce::DragForce(k1, k2){
+	m_k1 = (k1 == NULL) ? 0.0 : k1;
+	m_k2 = (k2 == NULL) ? 0.0 : k2;
+}
+
+function DragForce::applyForceToParticle(particle){
+	var velocity = Norm(particle.GetVelocity());
+	var velocityModulus = Modulus(particle.GetVelocity());
+	
+	particle.AddForce(-velocity * (m_k1 * velocityModulus + m_k2 * velocityModulus * velocityModulus));
+}
+
+class KeyPressForce : Force{
+	var m_key;
+	var m_force;
+	
+	applyForceToParticle(particle);
+};
+
+function KeyPressForce::KeyPressForce(key, force){
+	m_key = key;
+	m_force = force;
+}
+
+function KeyPressForce::applyForceToParticle(particle){
+	if(KeyPressed("j"))
+		particle.AddForce(m_force);
+}
+
+
+class SpringForce : Force{
+	var m_springConstant;
+	var m_equilibrium;
+	var m_anchor;
+	var m_anchored;
+	
+	applyForceToParticle(particle);
+};
+
+function SpringForce::SpringForce(anchor, anchored, springConstant, equilibrium){
+	m_anchor = (anchor == NULL) ? Particle() : anchor;
+	m_anchored = (anchored == NULL) ? true : false;
+	m_springConstant = (springConstant == NULL) ? DEF_SPRINGCONSTANT : springConstant;
+	m_equilibrium = (equilibrium == NULL ) ? DEF_EQUILIBRIUM : equilibrium;
+}
+
+function SpringForce::applyForceToParticle(particle){
+	var distance = m_anchor.GetObject().GetPosition() - particle.GetObject().GetPosition();
+	var displacement = m_equilibrium - modulus(distance);
+	
+	particle.AddForce(-m_springConstant * displacement * norm(distance));
+	if(!m_anchored)
+		m_anchor.AddForce(m_springConstant * displacement * norm(distance));
+}
+
+#endif

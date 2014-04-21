@@ -1,0 +1,126 @@
+#ifndef PARTICLE_S3D
+#define PARTICLE_S3D
+
+#include <Debug.s3d>
+
+#define DEF_VELOCITY		[0, 0, 0]
+#define DEF_FORCE			[0, 0, 0]
+#define DEF_RADIUS			0.5
+#define DEF_INVERSE_MASS	1.0
+
+class Particle{
+	var m_object;
+	var m_velocity;
+	var m_acceleration;
+	var m_inverseMass;
+	var m_force;
+	var m_radius;
+	
+	AddForce(force);
+	Integrate(interval); 	// Euler integration method
+	
+	GetObject();
+	GetPosition();
+	GetVelocity();
+	GetAcceleration();
+	GetInverseMass();
+	GetMass();
+	GetRadius();
+	GetType();
+	
+	SetPosition(position);
+	SetVelocity(velocity);
+	SetInverseMass(inverseMass);
+	SetMass(mass);
+	SetRadius(radius);
+	
+	IsScenery();
+	
+	init(object, velocity, inverseMass, radius);
+};
+
+function Particle::Particle(object, velocity, inverseMass, radius){
+	return init(object, velocity, inverseMass, radius);
+}
+
+function Particle::init(object, velocity, inverseMass, radius){
+	m_object = (object == NULL) ? CVmObj() : object;
+	m_velocity = (velocity == NULL) ? DEF_VELOCITY : velocity;
+	m_inverseMass = (inverseMass == NULL) ? DEF_INVERSE_MASS : inverseMass;
+	m_force = DEF_FORCE;
+	m_radius = (radius == NULL) ? DEF_RADIUS : radius;
+}
+
+function Particle::Integrate(interval){
+	// Update position
+	m_object.Translate(m_velocity * interval);
+	
+	// Compute acceleration
+	m_acceleration = m_inverseMass * m_force;
+	m_force = DEF_FORCE;
+	
+	// Update velocity
+	m_velocity += m_acceleration * interval;
+}
+
+function Particle::AddForce(force){
+	m_force += force;
+}
+
+function Particle::GetMass(){
+	return 1.0/m_inverseMass;
+}
+
+function Particle::GetInverseMass(){
+	return m_inverseMass;
+}
+
+function Particle::GetPosition(){
+	return m_object.GetPosition();
+}
+
+function Particle::GetVelocity(){
+	return m_velocity;
+}
+
+function Particle::GetAcceleration(){
+	return m_acceleration;
+}
+
+function Particle::GetObject(){
+	return m_object;
+}
+
+function Particle::GetRadius(){
+	return m_radius;
+}
+
+function Particle::GetType(){
+	return "Particle";
+}
+
+function Particle::SetPosition(position){
+	m_object.SetPosition(position);
+}
+
+function Particle::SetVelocity(velocity){
+	m_velocity = velocity;
+}
+
+function Particle::SetInverseMass(inverseMass){
+	m_inverseMass = inverseMass;
+}
+
+function Particle::SetMass(mass){
+	m_inverseMass = 1.0/mass;
+}
+
+function Particle::SetRadius(radius){
+	m_radius = radius;
+}
+
+function Particle::IsScenery(){
+	return false;
+}
+
+#endif

@@ -1,0 +1,143 @@
+#ifndef CONTACT_S3D
+#define CONTACT_S3D
+
+#include <Debug.s3d>
+#include <Particle.s3d>
+
+#define DEF_RES 1
+#define DEF_PENETRATION 0
+
+class Contact{
+	var m_objectA;
+	var m_objectB;
+	var m_restitutionCoefficient;
+	var m_contactNormal;
+	var m_penetration;
+
+	Resolve(interval);
+	
+	init(objectA, objectB, contactNormal, restitutionCoefficient, penetration);
+	resolveVelocity(interval);
+	resolvePenetration(interval);
+	isParticleBScenery();
+};
+
+function Contact::Contact(contactNormal, restitutionCoefficient, penetration){
+	return init();
+}
+
+function Contact::init(objectA, objectB, contactNormal, restitutionCoefficient, penetration){
+	m_objectA = objectA;
+	m_objectB = objectB;
+	m_contactNormal = contactNormal;
+	m_restitutionCoefficient = (restitutionCoefficient == NULL) ? DEF_RES : restitutionCoefficient;
+	m_penetration = (penetration == NULL) ? DEF_PENETRATION : penetration;
+}
+
+function Contact::Resolve(interval){
+	resolveVelocity(interval);
+	if(m_penetration > 0) 
+		resolvePenetration(interval);
+}
+
+function Contact::resolvePenetration(interval){
+	var totalMass;
+	
+	if(!isParticleBScenery())
+		totalMass = m_objectA.GetMass() + m_objectB.GetMass();
+	else
+		totalMass = m_objectA.GetMass();
+	
+	var offset = (m_penetration/totalMass)*m_contactNormal;
+	
+	m_objectA.SetPosition(m_objectA.GetPosition() + offset * m_objectA.GetMass());
+	if(!isParticleBScenery())
+		m_objectB.SetPosition(m_objectB.GetPosition() - offset * m_objectB.GetMass());
+}
+
+function Contact::IsParticleBScenery(){
+	return m_objectB == NULL || m_objectB.IsScenery();
+}
+
+
+class ParticleContact : Contact{
+	resolveVelocity(interval);
+};
+
+function ParticleContact::ParticleContact(particleA, particleB, contactNormal, restitutionCoefficient, penetration){
+	//TODO: It would be nice if I could call the superclass constructor directly
+	this.init(particleA, particleB, contactNormal, restitutionCoefficient, penetration);
+}
+
+function ParticleContact::resolveVelocity(interval){
+	var relativeVelocity = (m_objectA.GetVelocity() - m_objectB.GetVelocity())*m_contactNormal;
+	if(relativeVelocity >= 0)
+		return;
+	
+	//Handle stationary contacts
+	var frameVelocityOnContactNormal = (m_objectA.getAcceleration()) * m_contactNormal * interval;
+	if(frameVelocityOnContactNormal < 0)
+		relativeVelocity -= frameVelocityOnContactNormal;
+		
+	var numerator = -(1 + m_restitutionCoefficient)*relativeVelocity;
+	var denominator = m_objectA.GetInverseMass() + m_objectB.GetInverseMass();
+	
+	var imp = (numerator/denominator)*m_contactNormal;
+	m_objectA.SetVelocity(m_objectA.GetVelocity() + m_objectA.GetInverseMass() * imp);
+	m_objectB.SetVelocity(m_objectB.GetVelocity() - m_objectB.GetInverseMass() * imp);
+}
+
+
+class RigidBodyContact : Contact{
+	var m_contactPointA;
+	var m_contactPointB;
+	
+	init(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB);
+	resolveVelocity(interval);
+};
+
+function RigidBodyContact::RigidBodyContact(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB){
+	init(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB);
+}
+
+function RigidBodyContact::init(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB){
+	Contact::this.init(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration);
+	m_contactPointA = contactPointA;
+	m_contactPointB = contactPointB;	
+}
+
+function RigidBodyContact::resolveVelocity(interval){
+	var relativeVelocity = (m_objectA.GetVelocity() - m_objectB.GetVelocity())*m_contactNormal;
+	if(relativeVelocity >= 0)
+		return;
+
+	var worldInverseInertiaTensorA = m_objectA.GetWorldInverseInertiaTensor();
+	var worldInverseInertiaTensorB = m_objectB.GetWorldInverseInertiaTensor();
+	var angularVelocityAxisA = m_contactPointA ^ m_contactNormal;
+	var angularVelocityAxisB = m_contactPointB ^ m_contactNormal;
+	
+	//Handle stationary contacts
+	var frameVelocityOnContactNormal = (m_objectA.getAcceleration()) * m_contactNormal * interval;
+	if(frameVelocityOnContactNormal < 0)
+		relativeVelocity -= frameVelocityOnContactNormal;
+
+	var numerator = -(1 + m_restitutionCoefficient)*relativeVelocity;
+	var denominator = m_objectA.GetInverseMass() + m_objectB.GetInverseMass() + m_contactNormal*(MatrixMultiplyVector_3(worldInverseInertiaTensorA, angularVelocityAxisA)) + m_contactNormal*(MatrixMultiplyVector_3(worldInverseInertiaTensorB, angularVelocityAxisB));
+	
+	var impulse = (numerator/denominator)*m_contactNormal;
+	
+	m_objectA.SetVelocity(m_objectA.GetVelocity() + m_objectA.GetInverseMass() * impulse);
+	m_objectB.SetVelocity(m_objectB.GetVelocity() - m_objectB.GetInverseMass() * impulse);
+	m_objectA.SetAngularVelocity(m_objectA.GetAngularVelocity() + MatrixMultiplyVector_3(worldInverseInertiaTensorA, m_contactPointA ^ impulse));
+	m_objectB.SetAngularVelocity(m_objectB.GetAngularVelocity() - MatrixMultiplyVector_3(worldInverseInertiaTensorB, m_contactPointB ^ impulse));
+}
+
+class SphereContact : RigidBodyContact{
+	
+};
+
+function SphereContact::SphereContact(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB){
+	init(rBodyA, rBodyB, contactNormal, restitutionCoefficient, penetration, contactPointA, contactPointB);
+}
+
+#endif

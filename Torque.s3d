@@ -1,0 +1,55 @@
+#ifndef TORQUE_S3D
+#define TORQUE_S3D
+
+#include <Debug.s3d>
+
+#define DEF_TORQUE
+#define DEF_FACTOR 20
+
+class Torque{
+	var m_bodies;
+	var m_torque;
+	
+	Add(rigidBody);
+	ApplyTorque();
+	
+	applyTorqueToRigidBody(body);
+};
+
+function Torque::Torque(force, applicationPoint){
+	m_bodies = Array(0);
+	m_torque = (force == NULL || applicationPoint == NULL) ? DEF_TORQUE : force ^ applicationPoint;
+}
+
+function Torque::Add(body){
+	aadd(m_bodies, body);
+}
+
+function Torque::ApplyTorque(){
+	for(var i = 0; i < len(m_bodies); i++)
+		ApplyTorqueToRigidBody(m_bodies[i]);
+}
+
+
+class WASDTorque : Torque{
+	var m_factor;
+	
+	applyTorqueToRigidBody(body);
+};
+
+function WASDTorque::WASDTorque(factor){
+	m_factor = (factor != NULL) ? factor : DEF_FACTOR;
+}
+
+function WASDTorque::applyTorqueToRigidBody(body){
+	if(KeyPressed("a"))
+		body.addTorque([0.0, 0.0 , m_factor]);
+	if(KeyPressed("d"))
+		body.addTorque([0.0, 0.0, -m_factor]);
+	if(KeyPressed("w"))
+		body.addTorque([-m_factor, 0.0, 0.0]);
+	if(KeyPressed("s"))
+		body.addTorque([m_factor, 0.0, 0.0]);
+}
+
+#endif

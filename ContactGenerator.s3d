@@ -1,0 +1,97 @@
+#ifndef CONTACT_GENERATOR_S3D
+#define CONTACT_GENERATOR_S3D
+
+#define DEF_PLANE_NORMAL	[0, 1, 0]
+#define DEF_PLANE_OFFSET	0
+
+class UnaryContactGenerator{
+	GetContact(entity);
+};
+
+class BinaryContactGenerator{
+	GetContact(objectA, objectB);
+};
+
+class ParticleContactGenerator : BinaryContactGenerator{
+	GetContact(particleA, particleB);
+};
+
+function ParticleContactGenerator::GetContact(particleA, particleB){
+	if(particleA.GetType() == "Particle" && particleB.GetType() == "Particle"){
+		var distVector = particleA.GetPosition() - particleB.GetPosition();
+		var delta = modulus(distVector) - particleA.GetRadius() - particleB.GetRadius();
+		
+		if(delta < 0)
+			return ParticleContact(particleA, particleB, norm(distVector), 1, abs(delta));	
+	}
+}
+
+class SphereContactGenerator : BinaryContactGenerator{
+	GetContact(sphereA, sphereB);
+};
+
+function SphereContactGenerator::GetContact(sphereA, sphereB){
+	if(sphereA.GetType() == "Sphere" && sphereB.GetType() == "Sphere"){
+		var distVector = sphereA.GetPosition() - sphereB.GetPosition();
+		var delta = modulus(distVector) - sphereA.GetRadius() - sphereB.GetRadius();
+		
+		if(delta < 0){
+			var contactNormal = norm(distVector);
+			var contactPointA = sphereA.GetRadius() * (-contactNormal);
+			var contactPointB = sphereB.GetRadius() * contactNormal;
+			return SphereContact(sphereA, sphereB, contactNormal, 1, abs(delta), contactPointA, contactPointB);
+		}
+	}
+}
+
+class PlaneContactGenerator : UnaryContactGenerator{
+	var m_planeNormal;
+	var m_planeOffset;
+
+	GetContact(entity);
+};
+
+function PlaneContactGenerator::PlaneContactGenerator(planeNormal, planeOffset){
+	m_planeNormal = (planeNormal == NULL) ? DEF_PLANE_NORMAL : planeNormal;
+	m_planeOffset = (planeOffset == NULL) ? DEF_PLANE_OFFSET : planeOffset;
+}
+
+function PlaneContactGenerator::GetContact(entity){
+	if(entity.GetType() == "Plane"){
+		var minDistance = 0;
+		var minVertex = 0;
+		var vertices = entity.GetWorldVertices();
+		
+		for(var i = 0; i < 4; i++){
+			var distance = vertices[i]*m_planeNormal - m_planeOffset;
+			if(distance < minDistance){
+				minDistance = distance;
+				minVertex = vertices[i];
+			}
+		}
+	
+		if(minDistance < 0){
+			return RigidBodyContact(entity, Scenery(), m_planeNormal, 1, -minDistance, minVertex - entity.GetPosition(), m_planeNormal);
+		}
+	}else if(entity.GetType() == "Sphere"){
+		var distance = entity.GetPosition()*m_planeNormal - m_planeOffset - entity.GetRadius();
+		
+		if(distance < 0){
+			//Needed because friction is for the moment not simulated
+			if(m_planeNormal.x != 0){
+				entity.SetAngularVelocity([entity.GetAngularVelocity().x, entity.GetAngularVelocity().y, -0.5*entity.GetAngularVelocity().z]);
+			}
+			if(m_planeNormal.z != 0){
+				entity.SetAngularVelocity([-0.5*entity.GetAngularVelocity().x, entity.GetAngularVelocity().y, entity.GetAngularVelocity().z]);
+			}
+		
+			return RigidBodyContact(entity, Scenery(), m_planeNormal, 0.5, -distance, -m_planeNormal * entity.GetRadius(), m_planeNormal);
+		}
+	}else{
+		var distance = entity.GetPosition()*m_planeNormal - m_planeOffset - entity.GetRadius();
+		if(distance < 0)
+			return ParticleContact(entity, Scenery(), m_planeNormal, 0.5, -distance);
+	}
+}
+
+#endif

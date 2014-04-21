@@ -1,0 +1,18 @@
+#ifndef CONTACT_RESOLVER_S3D
+#define CONTACT_RESOLVER_S3D
+
+#include <Debug.s3d>
+
+#DEFINE CONTACT_ITER 1
+
+class ParticleContactResolver{
+	ResolveContacts(contacts, interval);
+};
+
+function ParticleContactResolver::ResolveContacts(contacts, interval){
+	for(var i = 0; i < CONTACT_ITER * len(contacts); i++){
+		contacts[i].Resolve(interval);
+	}
+}
+
+#endif
